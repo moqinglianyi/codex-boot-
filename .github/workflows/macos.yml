@@ -1,0 +1,48 @@
+name: macOS build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: macOS ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: macos-15-intel
+          - arch: arm64
+            runner: macos-15
+    env:
+      MACOS_ARCH: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Verify native runner architecture and build-script checks
+        run: |
+          test "$(uname -m)" = "$MACOS_ARCH"
+          ./scripts/test-macos-architecture.sh
+      - name: Run Swift package tests
+        run: swift test --package-path macos
+      - name: Build and verify macOS app bundle
+        run: ./scripts/test-macos.sh
+      - name: Build and verify standalone app and package
+        run: ./scripts/test-macos-standalone.sh
+      - name: Upload macOS package and SHA-256
+        uses: actions/upload-artifact@v7
+        with:
+          name: DragonCodexBoot-macos-${{ matrix.arch }}
+          path: |
+            dist/*-macos-${{ matrix.arch }}-with-video.zip
+            dist/*-macos-${{ matrix.arch }}-with-video.zip.sha256
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
